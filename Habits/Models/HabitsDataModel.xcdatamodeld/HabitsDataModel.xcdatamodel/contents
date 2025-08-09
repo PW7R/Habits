@@ -17,5 +17,7 @@
         <attribute name="isChecked" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
         <attribute name="name" optional="YES" attributeType="String"/>
         <attribute name="type" optional="YES" attributeType="String"/>
+        <attribute name="activeWeekdays" optional="YES" attributeType="String"/>
+        <attribute name="sortIndex" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
     </entity>
 </model> 

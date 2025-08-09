@@ -13,15 +13,15 @@ struct HabitStatsCard: View {
     }
     
     private var currentStreak: Int {
+        // Compute streak across all-time entries up to today
+        let calendar = Calendar.current
+        let entries = habitStore.getAllHabitEntries(habitId: habit.id)
+        let completedDays = Set(entries.filter { $0.isCompleted }.map { calendar.startOfDay(for: $0.date) })
         var streak = 0
-        let sortedData = monthlyData.sorted { $0.date > $1.date }
-        
-        for dayData in sortedData {
-            if dayData.isCompleted {
-                streak += 1
-            } else {
-                break
-            }
+        var cursor = calendar.startOfDay(for: Date())
+        while completedDays.contains(cursor) {
+            streak += 1
+            cursor = calendar.date(byAdding: .day, value: -1, to: cursor) ?? cursor
         }
         return streak
     }
@@ -47,7 +47,7 @@ struct HabitStatsCard: View {
                 
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(Int(completionRate * 100))%")
-                        .font(.title3)
+            .font(.title3)
                         .fontWeight(.bold)
                         .foregroundColor(Color("Lime"))
                     
@@ -58,10 +58,9 @@ struct HabitStatsCard: View {
             }
             
             // GitHub-style contribution grid
-            GitHubContributionGrid(
+            WeeklyContributionGrid(
                 monthlyData: monthlyData,
-                color: habit.color,
-                currentMonth: currentMonth
+                color: habit.color
             )
             
             // Stats Summary
@@ -87,7 +86,7 @@ struct HabitStatsCard: View {
         .onAppear {
             generateMonthlyData()
         }
-        .onChange(of: currentMonth) { _ in
+            .onChange(of: currentMonth) { _ in
             generateMonthlyData()
         }
     }

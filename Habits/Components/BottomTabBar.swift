@@ -25,6 +25,7 @@ enum TabType: Int, CaseIterable {
 
 struct BottomTabBarWithBinding: View {
     @Binding var selectedTab: TabType
+    var onAddHabit: () -> Void = {}
     
     var body: some View {
         HStack (spacing: 0){
@@ -32,7 +33,13 @@ struct BottomTabBarWithBinding: View {
                 TabButton(
                     tab: tab,
                     isSelected: selectedTab == tab,
-                    action: { selectedTab = tab }
+                    action: {
+                        if selectedTab == tab && tab == .today {
+                            onAddHabit()
+                        } else {
+                            selectedTab = tab
+                        }
+                    }
                 )
             }
         }
@@ -61,16 +68,28 @@ struct TabButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                tab.icon
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 24, height: 24)
-                    .foregroundColor(.some(isSelected ? Color(.black) : Color("grayicon")))
-                
-                if isSelected {
-                    Text(tab.title)
-                        .font(.system(size: 13, weight: .medium))
+                if tab == .today && isSelected {
+                    Image("Plus")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 24, height: 24)
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.black)
+                    Text("New")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.black)
+                } else {
+                    tab.icon
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 24, height: 24)
+                        .foregroundColor(isSelected ? Color(.black) : Color("grayicon"))
+                    
+                    if isSelected {
+                        Text(tab.title)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.black)
+                    }
                 }
             }
             .padding(.horizontal, isSelected ? 16 : 12)
@@ -84,6 +103,23 @@ struct TabButton: View {
     private var selectedBackground: some View {
         Capsule()
             .fill(isSelected ? Color("Lime") : Color.clear)
+    }
+}
+
+struct BottomTabBarWithBinding_Previews: PreviewProvider {
+    struct PreviewWrapper: View {
+        @State private var selectedTab: TabType = .today
+        
+        var body: some View {
+            BottomTabBarWithBinding(selectedTab: $selectedTab)
+                .padding()
+                
+        }
+    }
+    
+    static var previews: some View {
+        PreviewWrapper()
+            .previewLayout(.sizeThatFits)
     }
 }
 

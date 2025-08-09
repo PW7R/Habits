@@ -6,14 +6,21 @@
 //
 
 import SwiftUI
+import UserNotifications
 
 @main
 struct HabitsApp: App {
     @StateObject private var habitStore = HabitStore()
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
+    
     var body: some Scene {
         WindowGroup {
-            MainTabView()
-                .environmentObject(habitStore)
+            if hasCompletedOnboarding {
+                MainTabView()
+                    .environmentObject(habitStore)
+            } else {
+                OnboardingView()
+            }
         }
     }
 }

@@ -6,12 +6,19 @@ class HabitStore: ObservableObject {
     @Published var habits: [Habit] = []
     // Always keep selectedDate normalized to start-of-day to avoid timezone/DST issues
     @Published var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    // Month displayed in header. Updates only when user selects day 1 explicitly.
+    @Published var displayedMonthDate: Date = Calendar.current.startOfDay(for: Date())
     
     private let container: NSPersistentContainer
     private let context: NSManagedObjectContext
     
     init() {
         container = NSPersistentContainer(name: "HabitsDataModel")
+        // Enable lightweight migration
+        if let description = container.persistentStoreDescriptions.first {
+            description.shouldMigrateStoreAutomatically = true
+            description.shouldInferMappingModelAutomatically = true
+        }
         container.loadPersistentStores { _, error in
             if let error = error {
                 print("Core Data failed to load: \(error.localizedDescription)")
@@ -19,6 +26,8 @@ class HabitStore: ObservableObject {
         }
         context = container.viewContext
         loadHabits()
+        // Initialize displayed month to current month start
+        displayedMonthDate = selectedDate
     }
     
     // MARK: - Habit Management
@@ -31,6 +40,10 @@ class HabitStore: ObservableObject {
         habitEntity.dailyGoal = Int32(habit.dailyGoal)
         habitEntity.type = habit.type.rawValue
         habitEntity.createdAt = Date()
+        // Persist weekly schedule and default sort order at end.
+        let weekdaysString = habit.activeWeekdays.sorted().map(String.init).joined(separator: ",")
+        habitEntity.activeWeekdays = weekdaysString
+        habitEntity.sortIndex = nextSortIndex()
         
         saveContext()
         loadHabits()
@@ -41,7 +54,7 @@ class HabitStore: ObservableObject {
         if let habitEntity = fetchHabitEntity(by: habitId) {
             habitEntity.currentProgress = Int32(newProgress)
             
-            // Create or update daily progress entry for the selected date
+            // Create or update daily progress entry for the selected date.
             let dailyProgress = fetchOrCreateDailyProgress(for: habitId, date: selectedDate)
             dailyProgress.progress = Int32(newProgress)
             dailyProgress.isCompleted = newProgress >= habitEntity.dailyGoal
@@ -94,6 +107,16 @@ class HabitStore: ObservableObject {
         }
     }
     
+    private func nextSortIndex() -> Int32 {
+        let request: NSFetchRequest<HabitEntity> = HabitEntity.fetchRequest()
+        request.sortDescriptors = [NSSortDescriptor(keyPath: \HabitEntity.sortIndex, ascending: false)]
+        request.fetchLimit = 1
+        if let maxEntity = try? context.fetch(request).first {
+            return maxEntity.sortIndex + 1
+        }
+        return 0
+    }
+    
     private func saveContext() {
         if context.hasChanges {
             do {
@@ -106,7 +129,11 @@ class HabitStore: ObservableObject {
     
     private func loadHabits() {
         let request: NSFetchRequest<HabitEntity> = HabitEntity.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \HabitEntity.createdAt, ascending: true)]
+        // Sort by custom order first, fallback to createdAt
+        request.sortDescriptors = [
+            NSSortDescriptor(keyPath: \HabitEntity.sortIndex, ascending: true),
+            NSSortDescriptor(keyPath: \HabitEntity.createdAt, ascending: true)
+        ]
         
         do {
             let habitEntities = try context.fetch(request)
@@ -145,31 +172,52 @@ class HabitStore: ObservableObject {
     }
     
     // MARK: - Computed Properties
-    var trackingHabits: [Habit] {
-        habits.filter { $0.type == .tracking }
+    private var selectedWeekday: Int { Calendar.current.component(.weekday, from: selectedDate) }
+    
+    var visibleHabits: [Habit] {
+        habits
+            .filter { $0.activeWeekdays.contains(selectedWeekday) }
+            .sorted { $0.sortIndex < $1.sortIndex }
     }
     
-    var oneTimeHabits: [Habit] {
-        habits.filter { $0.type == .oneTime }
-    }
+    var trackingHabits: [Habit] { visibleHabits.filter { $0.type == .tracking } }
     
-    var completedHabitsCount: Int {
-        habits.filter { $0.isCompleted }.count
-    }
+    var oneTimeHabits: [Habit] { visibleHabits.filter { $0.type == .oneTime } }
     
-    var totalHabitsCount: Int {
-        habits.count
+    var completedHabitsCount: Int { visibleHabits.filter { $0.isCompleted }.count }
+    
+    var totalHabitsCount: Int { visibleHabits.count }
+    
+    // For Settings reorder UI
+    var habitsSortedForSettings: [Habit] {
+        habits.sorted { $0.sortIndex < $1.sortIndex }
     }
     
     // MARK: - Date Navigation
     func updateSelectedDate(_ newDate: Date) {
-        // Normalize to start-of-day to avoid off-by-one issues
-        selectedDate = Calendar.current.startOfDay(for: newDate)
-        loadHabits() // Reload habits for the new date
+		// Normalize to start-of-day to avoid off-by-one issues
+		let normalized = Calendar.current.startOfDay(for: newDate)
+		selectedDate = normalized
+		loadHabits() // Reload habits for the new date
+		// Always keep the displayed month in sync with the selected date's month
+		displayedMonthDate = normalized
+    }
+    
+    // MARK: - Reordering
+    func moveHabits(fromOffsets: IndexSet, toOffset: Int) {
+        var ordered = habitsSortedForSettings
+        ordered.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        for (idx, habit) in ordered.enumerated() {
+            if let entity = fetchHabitEntity(by: habit.id) {
+                entity.sortIndex = Int32(idx)
+            }
+        }
+        saveContext()
+        loadHabits()
     }
     
     // MARK: - Statistics
-    func getHabitEntriesForMonth(habitId: UUID, date: Date) -> [DateProgress] {
+     func getHabitEntriesForMonth(habitId: UUID, date: Date) -> [DateProgress] {
         let calendar = Calendar.current
         let startOfMonth = calendar.dateInterval(of: .month, for: date)?.start ?? date
         let endOfMonth = calendar.dateInterval(of: .month, for: date)?.end ?? date
@@ -199,7 +247,7 @@ class HabitStore: ObservableObject {
     }
 
     // MARK: - Extended statistics helpers
-    func getAllHabitEntries(habitId: UUID) -> [DateProgress] {
+     func getAllHabitEntries(habitId: UUID) -> [DateProgress] {
         let request: NSFetchRequest<DailyProgressEntity> = DailyProgressEntity.fetchRequest()
         request.predicate = NSPredicate(format: "habitId == %@", habitId as CVarArg)
         request.sortDescriptors = [NSSortDescriptor(keyPath: \DailyProgressEntity.date, ascending: true)]
@@ -221,7 +269,7 @@ class HabitStore: ObservableObject {
         }
     }
 
-    func getEntriesForLast365Days(habitId: UUID, from referenceDate: Date = Date()) -> [DateProgress] {
+     func getEntriesForLast365Days(habitId: UUID, from referenceDate: Date = Date()) -> [DateProgress] {
         let calendar = Calendar.current
         let end = calendar.startOfDay(for: referenceDate)
         let start = calendar.date(byAdding: .day, value: -364, to: end) ?? end
@@ -249,4 +297,5 @@ class HabitStore: ObservableObject {
             return []
         }
     }
-} 
+}
+ 
