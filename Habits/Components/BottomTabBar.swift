@@ -23,38 +23,6 @@ enum TabType: Int, CaseIterable {
     }
 }
 
-// MARK: - Bottom Tab Bar View (Original - keep this)
-struct BottomTabBar: View {
-    @State private var selectedTab: TabType = .today
-    
-    var body: some View {
-        HStack (spacing: 0){
-            ForEach(TabType.allCases, id: \.self) { tab in
-                TabButton(
-                    tab: tab,
-                    isSelected: selectedTab == tab,
-                    action: { selectedTab = tab }
-                )
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 16)
-        .background(tabBarBackground)
-        .padding(.bottom, 16)
-        .padding(.horizontal, 14)
-    }
-    
-    private var tabBarBackground: some View {
-        Capsule()
-            .fill(Color("grayblack"))
-            .overlay(
-                Capsule()
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-            )
-    }
-}
-
-// MARK: - Bottom Tab Bar With Binding (New version for navigation)
 struct BottomTabBarWithBinding: View {
     @Binding var selectedTab: TabType
     
@@ -71,7 +39,7 @@ struct BottomTabBarWithBinding: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
         .background(tabBarBackground)
-        .padding(.bottom, 16)
+        .padding(.bottom, 2)
         .padding(.horizontal, 14)
     }
     
@@ -85,7 +53,6 @@ struct BottomTabBarWithBinding: View {
     }
 }
 
-// MARK: - Individual Tab Button (Keep existing)
 struct TabButton: View {
     let tab: TabType
     let isSelected: Bool
@@ -120,13 +87,3 @@ struct TabButton: View {
     }
 }
 
-#Preview {
-    ZStack {
-        Color("backgroundblack").ignoresSafeArea()
-        
-        VStack {
-            Spacer()
-            BottomTabBar()
-        }
-    }
-}

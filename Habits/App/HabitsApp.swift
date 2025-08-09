@@ -12,7 +12,7 @@ struct HabitsApp: App {
     @StateObject private var habitStore = HabitStore()
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainTabView()
                 .environmentObject(habitStore)
         }
     }

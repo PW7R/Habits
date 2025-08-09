@@ -5,17 +5,20 @@ struct GitHubContributionGrid: View {
     let color: Color
     let currentMonth: Date
     
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 3), count: 7)
+    // Fixed width columns to get uniform small rounded squares similar to GitHub
+    private let columns = Array(repeating: GridItem(.fixed(14), spacing: 3, alignment: .center), count: 7)
     private let calendar = Calendar.current
     
     private var gridData: [GridDay] {
         let startOfMonth = calendar.dateInterval(of: .month, for: currentMonth)?.start ?? currentMonth
-        let firstWeekday = calendar.component(.weekday, from: startOfMonth)
+        let weekdayOfStart = calendar.component(.weekday, from: startOfMonth)
+        // Number of leading blanks based on user's locale firstWeekday
+        let leading = (weekdayOfStart - calendar.firstWeekday + 7) % 7
         
         var days: [GridDay] = []
         
         // Add empty days for proper alignment
-        for _ in 1..<firstWeekday {
+        for _ in 0..<leading {
             days.append(GridDay(date: nil, progress: nil))
         }
         
@@ -29,10 +32,10 @@ struct GitHubContributionGrid: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            // Weekday headers with abbreviated names
+            // Weekday headers localized and adjusted to calendar.firstWeekday
             HStack {
-                ForEach(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], id: \.self) { day in
-                    Text(day)
+                ForEach(weekdaySymbols(), id: \.self) { symbol in
+                    Text(symbol)
                         .font(.caption2)
                         .foregroundColor(.gray)
                         .frame(maxWidth: .infinity)
@@ -40,17 +43,21 @@ struct GitHubContributionGrid: View {
             }
             
             // Grid
-            LazyVGrid(columns: columns, spacing: 3) {
+            LazyVGrid(columns: columns, alignment: .center, spacing: 3) {
                 ForEach(gridData.indices, id: \.self) { index in
                     let day = gridData[index]
-                    
-                    ContributionDayView(
-                        day: day,
-                        baseColor: color
-                    )
+                    ContributionDayView(day: day, baseColor: color)
                 }
             }
         }
+    }
+
+    private func weekdaySymbols() -> [String] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        let symbols = formatter.shortWeekdaySymbols
+        let first = calendar.firstWeekday - 1 // convert to 0-based
+        return Array(symbols![first...]) + Array(symbols![..<first])
     }
 }
 
@@ -75,14 +82,13 @@ struct ContributionDayView: View {
     }
     
     var body: some View {
-        Rectangle()
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
             .fill(fillColor)
-            .frame(alignment: .center)
-            .cornerRadius(2)
+            .frame(width: 14, height: 14, alignment: .center)
             .overlay(
                 day.date != nil ?
-                RoundedRectangle(cornerRadius: 2)
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 0.5) : nil
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .stroke(Color.gray.opacity(0.25), lineWidth: 0.5) : nil
             )
     }
 }
